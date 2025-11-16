@@ -51,6 +51,8 @@ interface Match {
 
 const STORAGE_KEY = "fm24_league_state_v1"
 
+type Step = 'select' | 'league'
+
 export default function Home() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [managers, setManagers] = useState<Manager[]>([
@@ -87,6 +89,11 @@ export default function Home() {
       bio: ""
     }
   ])
+  // Manager yang IKUT liga
+  const [activeManagerIds, setActiveManagerIds] = useState<string[]>(() => ["m1", "m2", "m3", "m4"])
+  // Step halaman: pilih peserta / dashboard liga
+  const [step, setStep] = useState<Step>('select')
+
   const [matches, setMatches] = useState<Match[]>([])
   const [matchCounter, setMatchCounter] = useState(1)
   const [currentDetailManagerId, setCurrentDetailManagerId] = useState<string | null>(null)
@@ -115,8 +122,10 @@ export default function Home() {
   const channelRef = useRef<any>(null)
 
   // Flag untuk menandai update yang datang dari server (loadState atau Pusher)
-  // supaya tidak di-save lagi (menghindari spam / loop).
   const isRemoteUpdate = useRef(false)
+
+  // Helper: managers yang ikut liga
+  const activeManagers = managers.filter(m => activeManagerIds.includes(m.id))
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("fmTheme") as 'dark' | 'light' | null
@@ -128,11 +137,15 @@ export default function Home() {
     }
 
     const init = async () => {
-      // Muat data bersama dulu
       await loadState()
       setIsLoaded(true)
 
-      // Baru setup Pusher setelah state awal masuk
+      // Kalau sudah ada match tersimpan, otomatis langsung ke halaman liga
+      setStep((prev) => {
+        if (matches.length > 0) return 'league'
+        return prev
+      })
+
       if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_PUSHER_KEY) {
         const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
           cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'ap1',
@@ -143,10 +156,8 @@ export default function Home() {
         channelRef.current = channel
 
         channel.bind('data-updated', (data: any) => {
-          // Tandai bahwa ini update dari server
           isRemoteUpdate.current = true
 
-          // Update state ketika data diupdate oleh user lain
           if (data.managers && Array.isArray(data.managers)) {
             const managersWithBio = data.managers.map((m: Manager) => ({
               ...m,
@@ -164,13 +175,17 @@ export default function Home() {
           if (data.matchCounter && typeof data.matchCounter === 'number') {
             setMatchCounter(data.matchCounter)
           }
+          if (Array.isArray(data.activeManagerIds) && data.activeManagerIds.length > 0) {
+            setActiveManagerIds(data.activeManagerIds)
+          } else if (data.managers && Array.isArray(data.managers)) {
+            setActiveManagerIds(data.managers.map((m: Manager) => m.id))
+          }
         })
       }
     }
 
     init()
 
-    // Cleanup Pusher on unmount
     return () => {
       if (channelRef.current) {
         channelRef.current.unbind_all()
@@ -198,10 +213,10 @@ export default function Home() {
         managers, 
         matches,
         matchCounter,
+        activeManagerIds,
         timestamp: new Date().toISOString()
       }
       
-      // Save ke server (shared data)
       const response = await fetch('/api/data', {
         method: 'POST',
         headers: {
@@ -214,17 +229,15 @@ export default function Home() {
         throw new Error('Failed to save to server')
       }
       
-      // Juga simpan ke localStorage sebagai backup
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
       } catch (e) {
-        // Abaikan error localStorage
+        // ignore
       }
     } catch (e) {
       console.error("saveState error", e)
-      // Fallback ke localStorage jika server gagal
       try {
-        const state = { managers, matches, matchCounter }
+        const state = { managers, matches, matchCounter, activeManagerIds }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
       } catch (localError) {
         console.error("localStorage save error", localError)
@@ -234,11 +247,8 @@ export default function Home() {
 
   async function loadState() {
     try {
-      // Semua update dari fungsi ini dianggap remote (state bersama),
-      // jangan langsung di-save lagi.
       isRemoteUpdate.current = true
 
-      // Load dari server (shared data)
       const response = await fetch('/api/data')
       
       if (response.ok) {
@@ -265,16 +275,25 @@ export default function Home() {
         if (state.matchCounter && typeof state.matchCounter === 'number') {
           setMatchCounter(state.matchCounter)
         }
-        
+
+        if (Array.isArray(state.activeManagerIds) && state.activeManagerIds.length > 0) {
+          setActiveManagerIds(state.activeManagerIds)
+        } else if (state.managers && Array.isArray(state.managers)) {
+          setActiveManagerIds(state.managers.map((m: Manager) => m.id))
+        }
+
+        // Kalau ada match di server, langsung ke halaman liga
+        if (state.matches && Array.isArray(state.matches) && state.matches.length > 0) {
+          setStep('league')
+        }
+
         return
       }
     } catch (e) {
       console.error("loadState from server error", e)
     }
     
-    // Fallback ke localStorage jika server gagal
     try {
-      // Tetap tandai sebagai remote (data lama yang di-load)
       isRemoteUpdate.current = true
 
       const raw = localStorage.getItem(STORAGE_KEY)
@@ -302,6 +321,16 @@ export default function Home() {
       
       if (state.matchCounter && typeof state.matchCounter === 'number') {
         setMatchCounter(state.matchCounter)
+      }
+
+      if (Array.isArray(state.activeManagerIds) && state.activeManagerIds.length > 0) {
+        setActiveManagerIds(state.activeManagerIds)
+      } else if (state.managers && Array.isArray(state.managers)) {
+        setActiveManagerIds(state.managers.map((m: Manager) => m.id))
+      }
+
+      if (state.matches && Array.isArray(state.matches) && state.matches.length > 0) {
+        setStep('league')
       }
     } catch (e) {
       console.error("loadState from localStorage error", e)
@@ -342,25 +371,20 @@ export default function Home() {
       return
     }
 
-    // Auto-detect tipe berdasarkan club lawan
     let finalType = matchType
     let finalOpponentId: string | undefined = undefined
     let finalOpponent: string | undefined = undefined
 
     if (matchType === 'AI') {
-      // Cek apakah club lawan dipilih oleh manager lain
       const opponentManager = getManagerByClub(matchOpponent)
       if (opponentManager && opponentManager.id !== matchManager) {
-        // Club dipilih oleh manager lain, jadi ini Teman
         finalType = 'Teman'
         finalOpponentId = opponentManager.id
       } else {
-        // Club tidak dipilih oleh manager manapun, jadi AI
         finalType = 'AI'
         finalOpponent = matchOpponent
       }
     } else {
-      // Tipe Teman, lawan adalah manager ID
       finalType = 'Teman'
       finalOpponentId = matchOpponent
     }
@@ -382,7 +406,6 @@ export default function Home() {
     setMatches([...matches, match])
     setMatchCounter(matchCounter + 1)
     
-    // Reset form sebagian
     setMatchOpponent('')
     setMatchGf(0)
     setMatchGa(0)
@@ -393,6 +416,7 @@ export default function Home() {
   }
 
   function selectManagerForMatch(managerId: string) {
+    if (!activeManagerIds.includes(managerId)) return
     setMatchManager(managerId)
     setShowMatchForm(true)
     setMatchOpponent('')
@@ -498,7 +522,8 @@ export default function Home() {
         const resetState = {
           managers: defaultManagers,
           matches: [],
-          matchCounter: 1
+          matchCounter: 1,
+          activeManagerIds: defaultManagers.map(m => m.id)
         }
         
         const response = await fetch('/api/data', {
@@ -510,12 +535,12 @@ export default function Home() {
         })
         
         if (response.ok) {
-          // Anggap reset ini juga "remote" supaya tidak langsung ke-save lagi
           isRemoteUpdate.current = true
 
           setManagers(defaultManagers)
           setMatches([])
           setMatchCounter(1)
+          setActiveManagerIds(resetState.activeManagerIds)
           setCurrentDetailManagerId(null)
           setCurrentEditManagerId(null)
           setShowMatchForm(false)
@@ -527,6 +552,7 @@ export default function Home() {
           setFilterType('all')
           setFilterComp('all')
           setFilterManager('all')
+          setStep('select')
           
           localStorage.removeItem(STORAGE_KEY)
           sessionStorage.removeItem(STORAGE_KEY)
@@ -542,20 +568,19 @@ export default function Home() {
     }
   }
 
-  // Auto-save **hanya** untuk perubahan lokal (bukan dari loadState / Pusher)
+  // Auto-save untuk perubahan lokal
   useEffect(() => {
     if (!isLoaded) return
-
-    // Jika perubahan barusan datang dari server, jangan save lagi
     if (isRemoteUpdate.current) {
       isRemoteUpdate.current = false
       return
     }
-
     saveState()
-  }, [managers, matches, isLoaded])
+  }, [managers, matches, activeManagerIds, isLoaded])
 
   const filteredMatches = matches.filter((match) => {
+    // Hanya match dari manager yang ikut liga
+    if (!activeManagerIds.includes(match.managerId)) return false
     if (filterType !== 'all' && match.type !== filterType) return false
     if (filterComp !== 'all' && match.competition !== filterComp) return false
     if (filterManager !== 'all' && match.managerId !== filterManager) return false
@@ -576,7 +601,7 @@ export default function Home() {
       pts: number
     }> = {}
 
-    managers.forEach((m) => {
+    activeManagers.forEach((m) => {
       stats[m.id] = {
         id: m.id,
         name: m.name,
@@ -593,6 +618,7 @@ export default function Home() {
 
     matches.forEach((match) => {
       if (!match.use) return
+      if (!activeManagerIds.includes(match.managerId)) return
       const s = stats[match.managerId]
       if (!s) return
       s.played++
@@ -650,7 +676,7 @@ export default function Home() {
     return stats
   })() : null
 
-  // Edit Manager Page
+  // STEP 2: Edit Manager Page
   if (currentEditManagerId && editManager) {
     return (
       <div className="container">
@@ -684,7 +710,6 @@ export default function Home() {
               maxWidth: '600px',
               margin: '0 auto'
             }}>
-              {/* Manager Photo Preview */}
               <div style={{ textAlign: 'center' }}>
                 <div className="manager-avatar" style={{ margin: '0 auto', width: '120px', height: '120px' }}>
                   {editManager.photoFile ? (
@@ -704,7 +729,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Club Selection */}
               <div>
                 <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
                   Club yang Dilatih
@@ -752,7 +776,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Biodata */}
               <div>
                 <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
                   Biodata Manager
@@ -780,7 +803,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
                 <button
                   type="button"
@@ -812,7 +834,7 @@ export default function Home() {
     )
   }
 
-  // Detail Manager Page
+  // STEP 3: Detail Manager Page
   if (currentDetailManagerId && detailManager) {
     return (
       <div className="container">
@@ -825,6 +847,9 @@ export default function Home() {
             <div className="pill">Season 1</div>
             <button className="btn" onClick={resetAllData} style={{ fontSize: '11px', padding: '4px 10px' }} title="Reset semua data">
               🔄 Reset
+            </button>
+            <button className="btn" onClick={() => setStep('select')}>
+              Pilih Peserta
             </button>
             <button className="btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               Theme: {theme === 'dark' ? 'Dark' : 'Light'}
@@ -947,18 +972,147 @@ export default function Home() {
     )
   }
 
-  // MAIN DASHBOARD
+  // STEP 1: Halaman PILIH PESERTA (siapa saja yang ikut jadi manager)
+  if (step === 'select') {
+    return (
+      <div className="container">
+        <header>
+          <div className="header-left">
+            <div className="title">FM24 MANAGER LEAGUE</div>
+            <div className="subtitle">Pilih dulu siapa yang ikut jadi manager</div>
+          </div>
+          <div className="header-right">
+            <div className="pill">Season 1</div>
+            <button className="btn" onClick={resetAllData} style={{ fontSize: '11px', padding: '4px 10px' }} title="Reset semua data">
+              🔄 Reset
+            </button>
+            <button className="btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+              Theme: {theme === 'dark' ? 'Dark' : 'Light'}
+            </button>
+          </div>
+        </header>
+
+        <main>
+          <section id="select-managers">
+            <h2>Pilih Peserta Liga <span className="badge">Centang yang ikut main</span></h2>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+              Teman yang tidak ikut bisa di-uncheck. Halaman berikutnya hanya akan menampilkan manager yang ikut.
+            </p>
+            <div className="manager-grid">
+              {managers.map((manager) => {
+                const isActive = activeManagerIds.includes(manager.id)
+                const hasPhoto = manager.photoFile && manager.photoFile.trim() !== ''
+                const hasLogo = manager.clubLogoFile && manager.clubLogoFile.trim() !== ''
+                return (
+                  <article key={manager.id} className="manager-card">
+                    <div className="manager-avatar">
+                      {hasPhoto ? (
+                        <img
+                          className="manager-photo"
+                          src={`/foto/${encodeURIComponent(manager.photoFile)}`}
+                          alt={manager.name}
+                          style={{ display: 'block' }}
+                        />
+                      ) : (
+                        <span className="avatar-initial">
+                          {manager.name ? manager.name.charAt(0).toUpperCase() : "?"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="manager-info">
+                      <div className="manager-name-row">
+                        <span className="manager-name-text">{manager.name}</span>
+                      </div>
+                      <div className="club-row">
+                        {hasLogo && (
+                          <img
+                            className="club-logo-img"
+                            src={`/logo/${encodeURIComponent(manager.clubLogoFile)}`}
+                            alt={manager.clubName}
+                            style={{ display: 'block' }}
+                          />
+                        )}
+                        <span className="manager-club-text">
+                          {hasLogo ? manager.clubName : "Belum pilih club"}
+                        </span>
+                      </div>
+                      <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <label style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+                          <input
+                            type="checkbox"
+                            checked={isActive}
+                            onChange={() => {
+                              setActiveManagerIds((prev) => {
+                                if (prev.includes(manager.id)) {
+                                  return prev.filter(id => id !== manager.id)
+                                } else {
+                                  return [...prev, manager.id]
+                                }
+                              })
+                            }}
+                          />
+                          <span style={{ fontSize: '12px' }}>
+                            {isActive ? 'Ikut liga ✔️' : 'Tidak ikut liga'}
+                          </span>
+                        </label>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="btn manager-detail-btn"
+                            onClick={() => showEditManager(manager.id)}
+                            style={{ fontSize: '11px', padding: '4px 10px' }}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+
+            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                Total ikut liga: <strong>{activeManagerIds.length}</strong> manager
+              </span>
+              <button
+                className="btn primary"
+                type="button"
+                disabled={activeManagerIds.length === 0}
+                onClick={() => {
+                  if (activeManagerIds.length === 0) {
+                    alert('Minimal 1 manager harus ikut liga.')
+                    return
+                  }
+                  setStep('league')
+                }}
+                style={activeManagerIds.length === 0 ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+              >
+                Lanjut ke Halaman Liga →
+              </button>
+            </div>
+          </section>
+        </main>
+      </div>
+    )
+  }
+
+  // STEP 4: MAIN DASHBOARD (hanya manager yang ikut liga)
   return (
     <div className="container">
       <header>
         <div className="header-left">
           <div className="title">FM24 MANAGER LEAGUE</div>
-          <div className="subtitle">Mini liga 4 manager • gaya Football Manager</div>
+          <div className="subtitle">Mini liga • hanya manager yang ikut akan tampil</div>
         </div>
         <div className="header-right">
           <div className="pill">Season 1</div>
           <button className="btn" onClick={resetAllData} style={{ fontSize: '11px', padding: '4px 10px' }} title="Reset semua data">
             🔄 Reset
+          </button>
+          <button className="btn" onClick={() => setStep('select')}>
+            Pilih Peserta
           </button>
           <button className="btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
             Theme: {theme === 'dark' ? 'Dark' : 'Light'}
@@ -967,77 +1121,82 @@ export default function Home() {
       </header>
 
       <main>
-        {/* MANAGER CARDS */}
+        {/* MANAGER CARDS (hanya yang ikut liga) */}
         <section id="managers">
-          <h2>Managers <span className="badge">Preview squad kalian</span></h2>
-          <div className="manager-grid">
-            {managers.map((manager) => {
-              const hasPhoto = manager.photoFile && manager.photoFile.trim() !== ''
-              const hasLogo = manager.clubLogoFile && manager.clubLogoFile.trim() !== ''
-              return (
-                <article key={manager.id} className="manager-card">
-                  <div className="manager-avatar">
-                    {hasPhoto ? (
-                      <img
-                        className="manager-photo"
-                        src={`/foto/${encodeURIComponent(manager.photoFile)}`}
-                        alt={manager.name}
-                        style={{ display: 'block' }}
-                      />
-                    ) : (
-                      <span className="avatar-initial">
-                        {manager.name ? manager.name.charAt(0).toUpperCase() : "?"}
-                      </span>
-                    )}
-                  </div>
-                  <div className="manager-info">
-                    <div className="manager-name-row">
-                      <span className="manager-name-text">{manager.name}</span>
-                    </div>
-                    <div className="club-row">
-                      {hasLogo && (
+          <h2>Managers Aktif <span className="badge">Peserta liga ini</span></h2>
+          {activeManagers.length === 0 ? (
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Belum ada manager yang dipilih. Klik tombol <strong>Pilih Peserta</strong> di atas.
+            </p>
+          ) : (
+            <div className="manager-grid">
+              {activeManagers.map((manager) => {
+                const hasPhoto = manager.photoFile && manager.photoFile.trim() !== ''
+                const hasLogo = manager.clubLogoFile && manager.clubLogoFile.trim() !== ''
+                return (
+                  <article key={manager.id} className="manager-card">
+                    <div className="manager-avatar">
+                      {hasPhoto ? (
                         <img
-                          className="club-logo-img"
-                          src={`/logo/${encodeURIComponent(manager.clubLogoFile)}`}
-                          alt={manager.clubName}
+                          className="manager-photo"
+                          src={`/foto/${encodeURIComponent(manager.photoFile)}`}
+                          alt={manager.name}
                           style={{ display: 'block' }}
                         />
+                      ) : (
+                        <span className="avatar-initial">
+                          {manager.name ? manager.name.charAt(0).toUpperCase() : "?"}
+                        </span>
                       )}
-                      <span className="manager-club-text">
-                        {hasLogo ? manager.clubName : "Belum pilih club"}
-                      </span>
                     </div>
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        className="btn manager-detail-btn"
-                        onClick={() => showManagerDetail(manager.id)}
-                      >
-                        Detail
-                      </button>
-                      <button
-                        type="button"
-                        className="btn manager-detail-btn"
-                        onClick={() => showEditManager(manager.id)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="btn manager-detail-btn primary"
-                        onClick={() => selectManagerForMatch(manager.id)}
-                      >
-                        Tambah Match
-                      </button>
+                    <div className="manager-info">
+                      <div className="manager-name-row">
+                        <span className="manager-name-text">{manager.name}</span>
+                      </div>
+                      <div className="club-row">
+                        {hasLogo && (
+                          <img
+                            className="club-logo-img"
+                            src={`/logo/${encodeURIComponent(manager.clubLogoFile)}`}
+                            alt={manager.clubName}
+                            style={{ display: 'block' }}
+                          />
+                        )}
+                        <span className="manager-club-text">
+                          {hasLogo ? manager.clubName : "Belum pilih club"}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn manager-detail-btn"
+                          onClick={() => showManagerDetail(manager.id)}
+                        >
+                          Detail
+                        </button>
+                        <button
+                          type="button"
+                          className="btn manager-detail-btn"
+                          onClick={() => showEditManager(manager.id)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn manager-detail-btn primary"
+                          onClick={() => selectManagerForMatch(manager.id)}
+                        >
+                          Tambah Match
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
         </section>
 
-        {/* DASHBOARD (MATCH + STANDINGS) */}
         <div className="layout-two" id="dashboard-sections">
           {/* MATCH LIST */}
           <section id="matches">
@@ -1082,7 +1241,6 @@ export default function Home() {
                   </div>
 
                   <form onSubmit={handleAddMatch}>
-                    {/* Manager vs Opponent Display */}
                     <div className="match-vs-display">
                       <div className="match-team">
                         <div className="match-team-avatar">
@@ -1197,7 +1355,7 @@ export default function Home() {
                             required
                           >
                             <option value="">Pilih manager lawan</option>
-                            {managers
+                            {activeManagers
                               .filter(m => m.id !== matchManager)
                               .map(m => (
                                 <option key={m.id} value={m.id}>{m.name}</option>
@@ -1282,7 +1440,7 @@ export default function Home() {
                 color: 'var(--text-muted)',
                 fontSize: '13px'
               }}>
-                Pilih manager dari section "Managers" di atas untuk menambah pertandingan
+                Pilih manager dari section "Managers Aktif" di atas untuk menambah pertandingan
               </div>
             )}
 
@@ -1303,7 +1461,7 @@ export default function Home() {
               </select>
               <select value={filterManager} onChange={(e) => setFilterManager(e.target.value)}>
                 <option value="all">Semua manager</option>
-                {managers.map(m => (
+                {activeManagers.map(m => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
               </select>
@@ -1367,7 +1525,7 @@ export default function Home() {
 
           {/* STANDINGS */}
           <section id="standings">
-            <h2>Klasemen Manager <span className="badge">Hitung dari match yang dicentang</span></h2>
+            <h2>Klasemen Manager <span className="badge">Hanya peserta aktif</span></h2>
             <div style={{ overflowX: 'auto' }}>
               <table className="standings-table">
                 <thead>
@@ -1411,6 +1569,13 @@ export default function Home() {
                       <td>{row.pts}</td>
                     </tr>
                   ))}
+                  {standings.length === 0 && (
+                    <tr>
+                      <td colSpan={11} style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', padding: '12px' }}>
+                        Belum ada match yang dipakai (centang kolom <strong>Use</strong> di Match List).
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
