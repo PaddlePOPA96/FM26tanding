@@ -51,6 +51,7 @@ interface Match {
 }
 
 const STORAGE_KEY = "fm24_league_state_v1"
+const STEP_KEY = "fm24_step" // 🔹 step terakhir (select / league)
 
 type Step = 'select' | 'league'
 
@@ -136,6 +137,12 @@ export default function Home() {
       document.body.setAttribute("data-theme", "dark")
     }
 
+    // 🔹 Baca step terakhir (select / league)
+    const savedStep = localStorage.getItem(STEP_KEY) as Step | null
+    if (savedStep === 'league' || savedStep === 'select') {
+      setStep(savedStep)
+    }
+
     const init = async () => {
       await loadState()
       setIsLoaded(true)
@@ -185,6 +192,7 @@ export default function Home() {
           // Kalau sudah ada match → langsung ke halaman liga
           if (data.matches && Array.isArray(data.matches) && data.matches.length > 0) {
             setStep('league')
+            localStorage.setItem(STEP_KEY, 'league') // 🔹 simpan step
           }
         })
       }
@@ -295,6 +303,7 @@ export default function Home() {
 
         if (state.matches && Array.isArray(state.matches) && state.matches.length > 0) {
           setStep('league')
+          localStorage.setItem(STEP_KEY, 'league') // 🔹 simpan step kalau sudah ada match
         }
 
         return
@@ -341,6 +350,7 @@ export default function Home() {
 
       if (state.matches && Array.isArray(state.matches) && state.matches.length > 0) {
         setStep('league')
+        localStorage.setItem(STEP_KEY, 'league') // 🔹 simpan step juga di fallback
       }
     } catch (e) {
       console.error('loadState from localStorage error', e)
@@ -540,6 +550,7 @@ export default function Home() {
 
       localStorage.removeItem(STORAGE_KEY)
       sessionStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(STEP_KEY) // 🔹 hapus step juga
 
       alert('Data berhasil direset!')
     } catch (e) {
@@ -899,6 +910,7 @@ export default function Home() {
                     return
                   }
                   setStep('league')
+                  localStorage.setItem(STEP_KEY, 'league') // 🔹 simpan step
                 }}
                 style={activeManagerIds.length === 0 ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
               >
@@ -924,7 +936,13 @@ export default function Home() {
           <button className="btn" onClick={resetAllData} style={{ fontSize: '11px', padding: '4px 10px' }} title="Reset semua data">
             🔄 Reset
           </button>
-          <button className="btn" onClick={() => setStep('select')}>
+          <button
+            className="btn"
+            onClick={() => {
+              setStep('select')
+              localStorage.setItem(STEP_KEY, 'select') // 🔹 pindah ke pilih peserta
+            }}
+          >
             Pilih Peserta
           </button>
           <button className="btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
