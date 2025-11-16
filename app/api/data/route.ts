@@ -5,44 +5,89 @@ import Pusher from 'pusher'
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'league-data.json')
 
-// Initialize Pusher (only if credentials are available)
+// --- Init Pusher server (hanya kalau kredensial lengkap) ---
 let pusher: Pusher | null = null
 
-if (process.env.PUSHER_APP_ID && process.env.PUSHER_SECRET) {
+if (
+  process.env.PUSHER_APP_ID &&
+  process.env.PUSHER_KEY &&
+  process.env.PUSHER_SECRET
+) {
   pusher = new Pusher({
     appId: process.env.PUSHER_APP_ID,
-    key: process.env.NEXT_PUBLIC_PUSHER_KEY || '',
+    key: process.env.PUSHER_KEY,
     secret: process.env.PUSHER_SECRET,
-    cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'ap1',
-    useTLS: true
+    cluster: process.env.PUSHER_CLUSTER || 'ap1',
+    useTLS: true,
   })
+} else {
+  console.warn(
+    '[PUSHER] Server credentials belum lengkap. Realtime akan nonaktif di server.'
+  )
 }
 
-// Ensure data directory exists
+// --- Helper: pastikan folder data ada ---
 function ensureDataDir() {
-  const dataDir = path.join(process.cwd(), 'data')
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true })
+  const dir = path.dirname(DATA_FILE)
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
   }
 }
 
-// GET - Load data
-export async function GET() {
+// --- GET: ambil data liga ---
+export async function GET(_req: NextRequest) {
   try {
     ensureDataDir()
-    
-    if (fs.existsSync(DATA_FILE)) {
-      const fileContent = fs.readFileSync(DATA_FILE, 'utf-8')
-      const data = JSON.parse(fileContent)
-      return NextResponse.json(data)
-    } else {
-      // Return default data if file doesn't exist
-      return NextResponse.json({
-        managers: [],
+
+    if (!fs.existsSync(DATA_FILE)) {
+      // Default data pertama kali (boleh kamu sesuaikan)
+      const defaultData = {
+        managers: [
+          {
+            id: 'm1',
+            name: 'HUI',
+            clubName: 'Manchester City',
+            clubLogoFile: 'Manchester City.png',
+            photoFile: 'hui.png',
+            bio: '',
+          },
+          {
+            id: 'm2',
+            name: 'bobby',
+            clubName: 'Liverpool FC',
+            clubLogoFile: 'Liverpool FC.png',
+            photoFile: 'bobby.png',
+            bio: '',
+          },
+          {
+            id: 'm3',
+            name: 'ALDO',
+            clubName: 'Chelsea FC',
+            clubLogoFile: 'Chelsea FC.png',
+            photoFile: 'aldo.png',
+            bio: '',
+          },
+          {
+            id: 'm4',
+            name: 'OWEN',
+            clubName: 'Manchester United',
+            clubLogoFile: 'Manchester United.png',
+            photoFile: 'owen.png',
+            bio: '',
+          },
+        ],
         matches: [],
-        matchCounter: 1
-      })
+        matchCounter: 1,
+        timestamp: new Date().toISOString(),
+      }
+
+      fs.writeFileSync(DATA_FILE, JSON.stringify(defaultData, null, 2), 'utf-8')
+      return NextResponse.json(defaultData)
     }
+
+    const raw = fs.readFileSync(DATA_FILE, 'utf-8')
+    const data = JSON.parse(raw)
+    return NextResponse.json(data)
   } catch (error) {
     console.error('Error reading data:', error)
     return NextResponse.json(
@@ -52,34 +97,36 @@ export async function GET() {
   }
 }
 
-// POST - Save data
-export async function POST(request: NextRequest) {
+// --- POST: simpan data liga + broadcast ke Pusher ---
+export async function POST(req: NextRequest) {
   try {
+    const body = await req.json()
+
+    // Optional: validasi basic
+    // if (!Array.isArray(body.managers) || !Array.isArray(body.matches)) { ... }
+
     ensureDataDir()
-    
-    const body = await request.json()
-    const { managers, matches, matchCounter } = body
-    
-    const data = {
-      managers: managers || [],
-      matches: matches || [],
-      matchCounter: matchCounter || 1,
-      timestamp: new Date().toISOString()
+    const dataToSave = {
+      ...body,
+      timestamp: new Date().toISOString(),
     }
-    
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8')
-    
-    // Broadcast update to all clients via Pusher
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(dataToSave, null, 2), 'utf-8')
+
+    // Broadcast ke semua client via Pusher
     if (pusher) {
       try {
-        await pusher.trigger('fm24-league', 'data-updated', data)
+        await pusher.trigger('fm24-league', 'data-updated', dataToSave)
       } catch (pusherError) {
         console.error('Pusher error:', pusherError)
-        // Continue even if Pusher fails
+        // lanjut aja walau realtime gagal
       }
     }
-    
-    return NextResponse.json({ success: true, message: 'Data saved successfully' })
+
+    return NextResponse.json({
+      success: true,
+      message: 'Data saved successfully',
+    })
   } catch (error) {
     console.error('Error saving data:', error)
     return NextResponse.json(
