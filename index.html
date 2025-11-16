@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>FM24 Mini League – EPL Style</title>
+  <style>
+    :root {
+      --epl-purple: #37003c;
+      --epl-purple-dark: #1e0023;
+      --epl-pink: #e90052;
+      --accent: #e90052;
+      --accent-soft: rgba(233, 0, 82, 0.16);
+      --danger: #ff4b4b;
+      --success: #22c55e;
+      --shadow-soft: 0 14px 40px rgba(0, 0, 0, 0.55);
+      --radius-lg: 14px;
+
+      --bg-main: #120015;
+      --bg-gradient: radial-gradient(circle at top, #6e1d8a 0, #37003c 40%, #0a000c 85%);
+      --panel-bg-soft: rgba(23, 0, 33, 0.96);
+      --header-bg: linear-gradient(90deg, #37003c, #50005b);
+      --border: #4b154f;
+      --border-soft: #3b0c3f;
+      --text-main: #f9fafb;
+      --text-muted: #a1a1aa;
+      --table-header-bg: rgba(10, 0, 15, 0.9);
+      --table-header-border: #4b154f;
+      --table-row-alt: rgba(15, 4, 23, 0.95);
+      --table-row-normal: rgba(10, 1, 15, 0.96);
+      --input-bg: #120019;
+      --input-border: #4b154f;
+      --input-text: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-main);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 16px 40px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+      padding: 12px 18px;
+      background: var(--header-bg);
+      border-radius: 18px;
+      box-shadow: var(--shadow-soft);
+      border: 1px solid #6b1b78;
+    }
+
+    .header-left {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .header-right {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .pill-epl {
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: var(--accent-soft);
+      color: #f9fafb;
+      border: 1px solid var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pill-badge {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 20%, #fff, #f97316);
+      box-shadow: 0 0 0 2px #120013;
+      position: relative;
+    }
+
+    .pill-badge::after {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      border-radius: 999px;
+      border: 2px solid #37003c;
+    }
+
+    button,
+    .btn {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(18, 0, 24, 0.9);
+      color: var(--text-main);
+    }
+
+    button.primary,
+    .btn.primary {
+      background: var(--accent);
+      color: #120013;
+      border-color: #ff4b8f;
+      font-weight: 600;
+    }
+
+    button:active,
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 8px;
+    }
+
+    section {
+      background: var(--panel-bg-soft);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      box-shadow: var(--shadow-soft);
+      border: 1px solid var(--border-soft);
+    }
+
+    section h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    section h2 span.badge {
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #fde2eb;
+      border: 1px solid var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+    }
+
+    /* MANAGER CARDS */
+
+    .manager-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    @media (max-width: 800px) {
+      .manager-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .manager-card {
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      padding: 12px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      align-items: center;
+      background: radial-gradient(circle at top left, #5b1d6e 0, #1b001f 45%, #08000c 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .manager-card::before {
+      content: "";
+      position: absolute;
+      top: -40px;
+      right: -40px;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(233,0,82,0.45), transparent 65%);
+      opacity: 0.7;
+    }
+
+    .manager-main {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .manager-avatar {
+      width: 82px;
+      height: 82px;
+      border-radius: 18px;
+      border: 2px solid #ff4b8f;
+      background: radial-gradient(circle at 30% 10%, #f97316, #e90052);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .manager-avatar img.manager-photo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    .avatar-initial {
+      font-weight: 800;
+      font-size: 30px;
+      color: #fff;
+    }
+
+    .manager-info {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .manager-name-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .manager-name-text {
+      font-size: 20px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+    }
+
+    .manager-detail-btn {
+      font-size: 11px;
+      padding: 4px 10px;
+      background: rgba(10, 10, 10, 0.8);
+    }
+
+    .club-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .club-logo-img {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      object-fit: contain;
+      background: #120017;
+      border: 2px solid #ff4b8f;
+      display: none;
+      padding: 4px;
+    }
+
+    .manager-club-text {
+      font-size: 12px;
+    }
+
+    .manager-controls {
+      margin-top: 6px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      position: relative;
+      z-index: 1;
+    }
+
+    .manager-controls label {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 11px;
+    }
+
+    .manager-club-select {
+      padding: 5px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--input-border);
+      background: var(--input-bg);
+      color: var(--input-text);
+      font-size: 11px;
+    }
+
+    /* LAYOUT MATCH & STANDINGS */
+
+    .layout-two {
+      display: grid;
+      grid-template-columns: 1.5fr 1.7fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .layout-two {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    @media (max-width: 700px) {
+      .form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 480px) {
+      .form-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    label {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    select {
+      padding: 5px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--input-border);
+      font-size: 12px;
+      background: var(--input-bg);
+      color: var(--input-text);
+    }
+
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .form-footer {
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .filters-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 11px;
+    }
+
+    .filters-row select {
+      background: var(--input-bg);
+      color: var(--input-text);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    thead {
+      background: var(--table-header-bg);
+    }
+
+    th,
+    td {
+      padding: 6px 6px;
+      text-align: left;
+      border-bottom: 1px solid var(--table-header-border);
+      vertical-align: middle;
+    }
+
+    th:first-child,
+    td:first-child {
+      text-align: center;
+      width: 32px;
+    }
+
+    tbody tr:nth-child(even) {
+      background: var(--table-row-alt);
+    }
+
+    tbody tr:nth-child(odd) {
+      background: var(--table-row-normal);
+    }
+
+    .tag-ai {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.18);
+      color: #7dd3fc;
+    }
+
+    .tag-teman {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(248, 113, 113, 0.12);
+      color: #fecaca;
+    }
+
+    .tag-komp {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.25);
+      color: #e5e7eb;
+    }
+
+    .score-cell {
+      font-weight: 600;
+    }
+
+    .score-win {
+      color: var(--success);
+    }
+
+    .score-loss {
+      color: var(--danger);
+    }
+
+    .score-draw {
+      color: #fbbf24;
+    }
+
+    .pts-pill {
+      font-weight: 700;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(236, 72, 153, 0.25);
+      color: #f9a8d4;
+      display: inline-block;
+      text-align: center;
+    }
+
+    .standings-table td,
+    .standings-table th {
+      font-size: 11px;
+      padding: 4px 6px;
+    }
+
+    .standings-table tbody tr:nth-child(1) {
+      background: rgba(250, 204, 21, 0.14);
+    }
+
+    .standings-table tbody tr:nth-child(2) {
+      background: rgba(59, 130, 246, 0.15);
+    }
+
+    .standings-table tbody tr:nth-child(3) {
+      background: rgba(139, 92, 246, 0.16);
+    }
+
+    .mini-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 20%, #fff, #e90052);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #120013;
+      font-size: 11px;
+      font-weight: 800;
+      margin-right: 4px;
+      border: 1px solid #ffd5e3;
+    }
+
+    .club-text {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .club-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #f97316, #facc15);
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 10px 0;
+    }
+
+    /* MANAGER DETAIL PAGE */
+
+    #manager-detail {
+      display: none;
+    }
+
+    #manager-summary {
+      margin: 8px 0 10px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    @media (max-width: 700px) {
+      #manager-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .summary-card {
+      background: radial-gradient(circle at top left, rgba(233,0,82,0.45), rgba(24,0,33,0.9));
+      border-radius: 10px;
+      padding: 6px 8px;
+      border: 1px solid var(--border-soft);
+    }
+
+    .summary-card .label {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .summary-card .value {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .back-btn {
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-left">
+        <div class="title">FM24 MINI LEAGUE</div>
+        <div class="subtitle">4 Manager • Style Premier League (Purple)</div>
+      </div>
+      <div class="header-right">
+        <div class="pill-epl">
+          <span class="pill-badge"></span>
+          <span>Season 1</span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- MANAGER CARDS -->
+      <section id="managers">
+        <h2>Managers <span class="badge">Squad utamanya</span></h2>
+        <div class="manager-grid">
+          <article class="manager-card" data-manager-id="m1">
+            <div class="manager-main">
+              <div class="manager-avatar">
+                <img class="manager-photo" alt="">
+                <span class="avatar-initial">H</span>
+              </div>
+              <div class="manager-info">
+                <div class="manager-name-row">
+                  <span class="manager-name-text">HUI</span>
+                  <button type="button" class="btn manager-detail-btn" data-manager-id="m1">Detail</button>
+                </div>
+                <div class="club-row">
+                  <img class="club-logo-img" alt="">
+                  <span class="manager-club-text">Manchester City</span>
+                </div>
+              </div>
+            </div>
+            <div class="manager-controls">
+              <label>
+                Ganti Club
+                <select class="manager-club-select" data-manager-id="m1">
+                  <option value="">Pilih club</option>
+                </select>
+              </label>
+            </div>
+          </article>
+
+          <article class="manager-card" data-manager-id="m2">
+            <div class="manager-main">
+              <div class="manager-avatar">
+                <img class="manager-photo" alt="">
+                <span class="avatar-initial">B</span>
+              </div>
+              <div class="manager-info">
+                <div class="manager-name-row">
+                  <span class="manager-name-text">bobby</span>
+                  <button type="button" class="btn manager-detail-btn" data-manager-id="m2">Detail</button>
+                </div>
+                <div class="club-row">
+                  <img class="club-logo-img" alt="">
+                  <span class="manager-club-text">Liverpool FC</span>
+                </div>
+              </div>
+            </div>
+            <div class="manager-controls">
+              <label>
+                Ganti Club
+                <select class="manager-club-select" data-manager-id="m2">
+                  <option value="">Pilih club</option>
+                </select>
+              </label>
+            </div>
+          </article>
+
+          <article class="manager-card" data-manager-id="m3">
+            <div class="manager-main">
+              <div class="manager-avatar">
+                <img class="manager-photo" alt="">
+                <span class="avatar-initial">A</span>
+              </div>
+              <div class="manager-info">
+                <div class="manager-name-row">
+                  <span class="manager-name-text">ALDO</span>
+                  <button type="button" class="btn manager-detail-btn" data-manager-id="m3">Detail</button>
+                </div>
+                <div class="club-row">
+                  <img class="club-logo-img" alt="">
+                  <span class="manager-club-text">Chelsea FC</span>
+                </div>
+              </div>
+            </div>
+            <div class="manager-controls">
+              <label>
+                Ganti Club
+                <select class="manager-club-select" data-manager-id="m3">
+                  <option value="">Pilih club</option>
+                </select>
+              </label>
+            </div>
+          </article>
+
+          <article class="manager-card" data-manager-id="m4">
+            <div class="manager-main">
+              <div class="manager-avatar">
+                <img class="manager-photo" alt="">
+                <span class="avatar-initial">O</span>
+              </div>
+              <div class="manager-info">
+                <div class="manager-name-row">
+                  <span class="manager-name-text">OWEN</span>
+                  <button type="button" class="btn manager-detail-btn" data-manager-id="m4">Detail</button>
+                </div>
+                <div class="club-row">
+                  <img class="club-logo-img" alt="">
+                  <span class="manager-club-text">Manchester United</span>
+                </div>
+              </div>
+            </div>
+            <div class="manager-controls">
+              <label>
+                Ganti Club
+                <select class="manager-club-select" data-manager-id="m4">
+                  <option value="">Pilih club</option>
+                </select>
+              </label>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- DASHBOARD (MATCH + STANDINGS) -->
+      <div class="layout-two" id="dashboard-sections">
+        <!-- MATCH LIST -->
+        <section id="matches">
+          <h2>Match List <span class="badge">Pilih manager lalu input hasil</span></h2>
+
+          <form id="add-match-form">
+            <div class="form-grid">
+              <label>
+                Manager (dari 4 pemain)
+                <select id="match-manager">
+                  <option value="m1">HUI</option>
+                  <option value="m2">bobby</option>
+                  <option value="m3">ALDO</option>
+                  <option value="m4">OWEN</option>
+                </select>
+              </label>
+              <label>
+                Lawan
+                <input type="text" id="match-opponent" placeholder="Nama club / manager lawan">
+              </label>
+              <label>
+                Tipe
+                <select id="match-type">
+                  <option value="AI">vs AI</option>
+                  <option value="Teman">vs Teman</option>
+                </select>
+              </label>
+              <label>
+                Tanggal
+                <input type="date" id="match-date">
+              </label>
+              <label>
+                Kompetisi
+                <select id="match-competition">
+                  <option value="Liga">Liga</option>
+                  <option value="Cup">Cup</option>
+                  <option value="Friendly">Friendly</option>
+                </select>
+              </label>
+              <label>
+                Home / Away
+                <select id="match-ha">
+                  <option value="H">Home</option>
+                  <option value="A">Away</option>
+                </select>
+              </label>
+              <label>
+                Gol Manager
+                <input type="number" id="match-gf" min="0" value="0">
+              </label>
+              <label>
+                Gol Lawan
+                <input type="number" id="match-ga" min="0" value="0">
+              </label>
+              <div></div>
+            </div>
+            <div class="form-footer">
+              <span>Laga vs teman: bisa diinput 2x (masing-masing manager) kalau mau poin buat dua orang.</span>
+              <button type="submit" class="primary">+ Tambah Match</button>
+            </div>
+          </form>
+
+          <hr />
+
+          <div class="filters-row">
+            <span>Filter:</span>
+            <select id="filter-type">
+              <option value="all">Semua tipe</option>
+              <option value="AI">vs AI</option>
+              <option value="Teman">vs Teman</option>
+            </select>
+            <select id="filter-comp">
+              <option value="all">Semua kompetisi</option>
+              <option value="Liga">Liga</option>
+              <option value="Cup">Cup</option>
+              <option value="Friendly">Friendly</option>
+            </select>
+            <select id="filter-manager">
+              <option value="all">Semua manager</option>
+              <option value="m1">HUI</option>
+              <option value="m2">bobby</option>
+              <option value="m3">ALDO</option>
+              <option value="m4">OWEN</option>
+            </select>
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table id="match-table">
+              <thead>
+                <tr>
+                  <th>Use</th>
+                  <th>Tgl</th>
+                  <th>Manager</th>
+                  <th>Lawan</th>
+                  <th>Tipe</th>
+                  <th>Kompetisi</th>
+                  <th>H/A</th>
+                  <th>Skor</th>
+                  <th>Poin</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- match rows -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- STANDINGS -->
+        <section id="standings">
+          <h2>Klasemen Manager <span class="badge">Dari match yang dicentang</span></h2>
+          <div style="overflow-x:auto;">
+            <table class="standings-table">
+              <thead>
+                <tr>
+                  <th>Pos</th>
+                  <th>Manager</th>
+                  <th>Club</th>
+                  <th>Main</th>
+                  <th>W</th>
+                  <th>D</th>
+                  <th>L</th>
+                  <th>GM</th>
+                  <th>GK</th>
+                  <th>SG</th>
+                  <th>Poin</th>
+                </tr>
+              </thead>
+              <tbody id="standings-body">
+                <!-- standings rows -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- MANAGER DETAIL PAGE -->
+      <section id="manager-detail">
+        <button type="button" class="btn back-btn" id="back-dashboard">← Kembali ke dashboard</button>
+        <h2 id="manager-detail-title">Detail Manager</h2>
+        <div id="manager-summary"></div>
+        <div style="overflow-x:auto;">
+          <table id="manager-detail-table">
+            <thead>
+              <tr>
+                <th>Use</th>
+                <th>Tgl</th>
+                <th>Lawan</th>
+                <th>Tipe</th>
+                <th>Kompetisi</th>
+                <th>H/A</th>
+                <th>Skor</th>
+                <th>Hasil</th>
+                <th>Poin</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- detail rows -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const CLUB_LOGOS = [
+      "AFC Bournemouth.png",
+      "Arsenal FC.png",
+      "Aston Villa.png",
+      "Brentford FC.png",
+      "Brighton & Hove Albion.png",
+      "Burnley FC.png",
+      "Chelsea FC.png",
+      "Crystal Palace.png",
+      "Everton FC.png",
+      "Fulham FC.png",
+      "Leeds United.png",
+      "Liverpool FC.png",
+      "Manchester City.png",
+      "Manchester United.png",
+      "Newcastle United.png",
+      "Nottingham Forest.png",
+      "Sunderland AFC.png",
+      "Tottenham Hotspur.png",
+      "West Ham United.png",
+      "Wolverhampton Wanderers.png"
+    ];
+
+    const managers = [
+      {
+        id: "m1",
+        name: "HUI",
+        clubName: "Manchester City",
+        clubLogoFile: "Manchester City.png",
+        photoFile: "hui.png"
+      },
+      {
+        id: "m2",
+        name: "bobby",
+        clubName: "Liverpool FC",
+        clubLogoFile: "Liverpool FC.png",
+        photoFile: "bobby.png"
+      },
+      {
+        id: "m3",
+        name: "ALDO",
+        clubName: "Chelsea FC",
+        clubLogoFile: "Chelsea FC.png",
+        photoFile: "aldo.png"
+      },
+      {
+        id: "m4",
+        name: "OWEN",
+        clubName: "Manchester United",
+        clubLogoFile: "Manchester United.png",
+        photoFile: "owen.png"
+      }
+    ];
+
+    let matches = [];
+    let matchCounter = 1;
+    let currentDetailManagerId = null;
+
+    const STORAGE_KEY = "fm24_epl_league_state_v1";
+
+    // DOM refs
+    const addMatchForm = document.getElementById("add-match-form");
+    const matchTableBody = document.querySelector("#match-table tbody");
+    const standingsBody = document.getElementById("standings-body");
+
+    const filterType = document.getElementById("filter-type");
+    const filterComp = document.getElementById("filter-comp");
+    const filterManager = document.getElementById("filter-manager");
+    const matchManagerSelect = document.getElementById("match-manager");
+
+    const managerDetailSection = document.getElementById("manager-detail");
+    const backDashboardBtn = document.getElementById("back-dashboard");
+    const managerDetailTitle = document.getElementById("manager-detail-title");
+    const managerSummaryDiv = document.getElementById("manager-summary");
+    const managerDetailTableBody = document.querySelector("#manager-detail-table tbody");
+    const dashboardSections = document.getElementById("dashboard-sections");
+    const managersSection = document.getElementById("managers");
+
+    function getManagerById(id) {
+      return managers.find(m => m.id === id);
+    }
+
+    function saveState() {
+      try {
+        const state = { managers, matches };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.error("saveState error", e);
+      }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const state = JSON.parse(raw);
+        if (state.managers) {
+          state.managers.forEach(sm => {
+            const m = getManagerById(sm.id);
+            if (m) Object.assign(m, sm);
+          });
+        }
+        if (Array.isArray(state.matches)) {
+          matches = state.matches;
+          if (matches.length > 0) {
+            matchCounter = Math.max(...matches.map(m => m.id)) + 1;
+          }
+        }
+      } catch (e) {
+        console.error("loadState error", e);
+      }
+    }
+
+    function updateManagerCards() {
+      managers.forEach(m => {
+        const card = document.querySelector(`.manager-card[data-manager-id="${m.id}"]`);
+        if (!card) return;
+        const nameEl = card.querySelector(".manager-name-text");
+        const clubTextEl = card.querySelector(".manager-club-text");
+        const clubLogoImg = card.querySelector(".club-logo-img");
+        const avatar = card.querySelector(".manager-avatar");
+        const avatarImg = avatar.querySelector(".manager-photo");
+        const avatarInitial = avatar.querySelector(".avatar-initial");
+
+        nameEl.textContent = m.name || m.id;
+        clubTextEl.textContent = m.clubName || "Belum pilih club";
+
+        if (m.clubLogoFile) {
+          const encoded = encodeURIComponent(m.clubLogoFile);
+          clubLogoImg.src = "logo/" + encoded;
+          clubLogoImg.alt = m.clubName || m.clubLogoFile;
+          clubLogoImg.style.display = "block";
+        } else {
+          clubLogoImg.style.display = "none";
+        }
+
+        if (m.photoFile) {
+          const encodedFoto = encodeURIComponent(m.photoFile);
+          avatarImg.src = "foto/" + encodedFoto;
+          avatarImg.alt = m.name || "";
+          avatarImg.style.display = "block";
+          avatarInitial.style.display = "none";
+        } else {
+          avatarImg.style.display = "none";
+          avatarInitial.textContent = m.name ? m.name.charAt(0).toUpperCase() : "?";
+          avatarInitial.style.display = "block";
+        }
+      });
+    }
+
+    function initClubDropdowns() {
+      const selects = document.querySelectorAll(".manager-club-select");
+      selects.forEach(sel => {
+        if (sel.options.length === 1) {
+          CLUB_LOGOS.forEach(file => {
+            const opt = document.createElement("option");
+            opt.value = file;
+            opt.textContent = file.replace(".png", "");
+            sel.appendChild(opt);
+          });
+        }
+        const id = sel.dataset.managerId;
+        const m = getManagerById(id);
+        if (m && m.clubLogoFile) {
+          sel.value = m.clubLogoFile;
+        }
+
+        sel.addEventListener("change", () => {
+          const manager = getManagerById(id);
+          if (!manager) return;
+          manager.clubLogoFile = sel.value || "";
+          manager.clubName = manager.clubLogoFile
+            ? manager.clubLogoFile.replace(".png", "")
+            : "Belum pilih club";
+          updateManagerCards();
+          recalcStandings();
+          saveState();
+        });
+      });
+    }
+
+    function updateFilterManagerOptions() {
+      managers.forEach(m => {
+        const opt1 = filterManager.querySelector(`option[value="${m.id}"]`);
+        if (opt1) opt1.textContent = m.name;
+        const opt2 = matchManagerSelect.querySelector(`option[value="${m.id}"]`);
+        if (opt2) opt2.textContent = m.name;
+      });
+    }
+
+    function computeResult(match) {
+      if (match.gf > match.ga) return "W";
+      if (match.gf < match.ga) return "L";
+      return "D";
+    }
+
+    function computePoints(match) {
+      const result = computeResult(match);
+      let pts = 0;
+      if (result === "W") {
+        pts = match.type === "Teman" ? 5 : 3;
+      } else if (result === "D") {
+        pts = match.type === "Teman" ? 2 : 1;
+      } else {
+        pts = 0;
+      }
+      return pts;
+    }
+
+    function addMatchRow(match) {
+      const tr = document.createElement("tr");
+      tr.dataset.id = match.id;
+
+      const mgr = getManagerById(match.managerId);
+      const pts = computePoints(match);
+      const result = computeResult(match);
+
+      const useTd = document.createElement("td");
+      const useCheck = document.createElement("input");
+      useCheck.type = "checkbox";
+      useCheck.checked = match.use;
+      useCheck.addEventListener("change", () => {
+        match.use = useCheck.checked;
+        recalcStandings();
+        saveState();
+        if (currentDetailManagerId) buildManagerDetailView(currentDetailManagerId);
+      });
+      useTd.appendChild(useCheck);
+
+      const dateTd = document.createElement("td");
+      dateTd.textContent = match.date || "-";
+
+      const managerTd = document.createElement("td");
+      managerTd.textContent = mgr ? mgr.name : match.managerId;
+
+      const oppTd = document.createElement("td");
+      oppTd.textContent = match.opponent || "-";
+
+      const typeTd = document.createElement("td");
+      const typeSpan = document.createElement("span");
+      typeSpan.textContent = match.type;
+      typeSpan.className = match.type === "Teman" ? "tag-teman" : "tag-ai";
+      typeTd.appendChild(typeSpan);
+
+      const compTd = document.createElement("td");
+      const compSpan = document.createElement("span");
+      compSpan.textContent = match.competition;
+      compSpan.className = "tag-komp";
+      compTd.appendChild(compSpan);
+
+      const haTd = document.createElement("td");
+      haTd.textContent = match.ha;
+
+      const scoreTd = document.createElement("td");
+      scoreTd.className = "score-cell";
+      if (result === "W") scoreTd.classList.add("score-win");
+      else if (result === "L") scoreTd.classList.add("score-loss");
+      else scoreTd.classList.add("score-draw");
+      scoreTd.textContent = `${match.gf} - ${match.ga}`;
+
+      const ptsTd = document.createElement("td");
+      const ptsSpan = document.createElement("span");
+      ptsSpan.className = "pts-pill";
+      ptsSpan.textContent = pts;
+      ptsTd.appendChild(ptsSpan);
+
+      tr.appendChild(useTd);
+      tr.appendChild(dateTd);
+      tr.appendChild(managerTd);
+      tr.appendChild(oppTd);
+      tr.appendChild(typeTd);
+      tr.appendChild(compTd);
+      tr.appendChild(haTd);
+      tr.appendChild(scoreTd);
+      tr.appendChild(ptsTd);
+
+      matchTableBody.appendChild(tr);
+    }
+
+    function rebuildMatchTable() {
+      matchTableBody.innerHTML = "";
+      const tType = filterType.value;
+      const tComp = filterComp.value;
+      const tMgr = filterManager.value;
+
+      matches.forEach(match => {
+        if (tType !== "all" && match.type !== tType) return;
+        if (tComp !== "all" && match.competition !== tComp) return;
+        if (tMgr !== "all" && match.managerId !== tMgr) return;
+        addMatchRow(match);
+      });
+    }
+
+    function recalcStandings() {
+      const stats = {};
+      managers.forEach(m => {
+        stats[m.id] = {
+          id: m.id,
+          name: m.name,
+          club: m.clubName,
+          played: 0,
+          w: 0,
+          d: 0,
+          l: 0,
+          gf: 0,
+          ga: 0,
+          pts: 0
+        };
+      });
+
+      matches.forEach(match => {
+        if (!match.use) return;
+        const s = stats[match.managerId];
+        if (!s) return;
+        s.played++;
+        s.gf += match.gf;
+        s.ga += match.ga;
+        const result = computeResult(match);
+        if (result === "W") s.w++;
+        else if (result === "L") s.l++;
+        else s.d++;
+        s.pts += computePoints(match);
+      });
+
+      const rows = Object.values(stats).sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        const gdA = a.gf - a.ga;
+        const gdB = b.gf - b.ga;
+        if (gdB !== gdA) return gdB - gdA;
+        if (b.gf !== a.gf) return b.gf - a.gf;
+        return a.name.localeCompare(b.name);
+      });
+
+      standingsBody.innerHTML = "";
+      rows.forEach((row, index) => {
+        const tr = document.createElement("tr");
+
+        const posTd = document.createElement("td");
+        posTd.textContent = index + 1;
+
+        const mgrTd = document.createElement("td");
+        const avatar = document.createElement("span");
+        avatar.className = "mini-avatar";
+        avatar.textContent = row.name ? row.name.charAt(0).toUpperCase() : "?";
+        mgrTd.appendChild(avatar);
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = " " + row.name;
+        mgrTd.appendChild(nameSpan);
+
+        const clubTd = document.createElement("td");
+        const clubWrap = document.createElement("span");
+        clubWrap.className = "club-text";
+        const dot = document.createElement("span");
+        dot.className = "club-dot";
+        const clubName = document.createElement("span");
+        clubName.textContent = row.club || "-";
+        clubWrap.appendChild(dot);
+        clubWrap.appendChild(clubName);
+        clubTd.appendChild(clubWrap);
+
+        const mTd = document.createElement("td");
+        mTd.textContent = row.played;
+
+        const wTd = document.createElement("td");
+        wTd.textContent = row.w;
+
+        const dTd = document.createElement("td");
+        dTd.textContent = row.d;
+
+        const lTd = document.createElement("td");
+        lTd.textContent = row.l;
+
+        const gfTd = document.createElement("td");
+        gfTd.textContent = row.gf;
+
+        const gaTd = document.createElement("td");
+        gaTd.textContent = row.ga;
+
+        const sgTd = document.createElement("td");
+        sgTd.textContent = row.gf - row.ga;
+
+        const ptsTd = document.createElement("td");
+        ptsTd.textContent = row.pts;
+
+        tr.appendChild(posTd);
+        tr.appendChild(mgrTd);
+        tr.appendChild(clubTd);
+        tr.appendChild(mTd);
+        tr.appendChild(wTd);
+        tr.appendChild(dTd);
+        tr.appendChild(lTd);
+        tr.appendChild(gfTd);
+        tr.appendChild(gaTd);
+        tr.appendChild(sgTd);
+        tr.appendChild(ptsTd);
+
+        standingsBody.appendChild(tr);
+      });
+
+      if (currentDetailManagerId) {
+        buildManagerDetailView(currentDetailManagerId);
+      }
+    }
+
+    function buildManagerDetailView(managerId) {
+      const m = getManagerById(managerId);
+      if (!m) return;
+
+      managerDetailTitle.textContent = `Detail Manager – ${m.name} (${m.clubName || "Belum pilih club"})`;
+
+      const stats = {
+        played: 0,
+        w: 0,
+        d: 0,
+        l: 0,
+        gf: 0,
+        ga: 0,
+        pts: 0
+      };
+
+      matches.forEach(match => {
+        if (match.managerId !== managerId || !match.use) return;
+        const result = computeResult(match);
+        stats.played++;
+        stats.gf += match.gf;
+        stats.ga += match.ga;
+        if (result === "W") stats.w++;
+        else if (result === "L") stats.l++;
+        else stats.d++;
+        stats.pts += computePoints(match);
+      });
+
+      managerSummaryDiv.innerHTML = `
+        <div class="summary-card">
+          <div class="label">Match</div>
+          <div class="value">${stats.played}</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">W / D / L</div>
+          <div class="value">${stats.w} / ${stats.d} / ${stats.l}</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">Goals For / Against</div>
+          <div class="value">${stats.gf} / ${stats.ga}</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">Total Poin</div>
+          <div class="value">${stats.pts}</div>
+        </div>
+      `;
+
+      managerDetailTableBody.innerHTML = "";
+      matches
+        .filter(match => match.managerId === managerId)
+        .forEach(match => {
+          const tr = document.createElement("tr");
+          const result = computeResult(match);
+          const pts = computePoints(match);
+
+          const useTd = document.createElement("td");
+          const useCheck = document.createElement("input");
+          useCheck.type = "checkbox";
+          useCheck.checked = match.use;
+          useCheck.addEventListener("change", () => {
+            match.use = useCheck.checked;
+            recalcStandings();
+            saveState();
+          });
+          useTd.appendChild(useCheck);
+
+          const dateTd = document.createElement("td");
+          dateTd.textContent = match.date || "-";
+
+          const oppTd = document.createElement("td");
+          oppTd.textContent = match.opponent || "-";
+
+          const typeTd = document.createElement("td");
+          const typeSpan = document.createElement("span");
+          typeSpan.textContent = match.type;
+          typeSpan.className = match.type === "Teman" ? "tag-teman" : "tag-ai";
+          typeTd.appendChild(typeSpan);
+
+          const compTd = document.createElement("td");
+          const compSpan = document.createElement("span");
+          compSpan.textContent = match.competition;
+          compSpan.className = "tag-komp";
+          compTd.appendChild(compSpan);
+
+          const haTd = document.createElement("td");
+          haTd.textContent = match.ha;
+
+          const scoreTd = document.createElement("td");
+          scoreTd.className = "score-cell";
+          if (result === "W") scoreTd.classList.add("score-win");
+          else if (result === "L") scoreTd.classList.add("score-loss");
+          else scoreTd.classList.add("score-draw");
+          scoreTd.textContent = `${match.gf} - ${match.ga}`;
+
+          const resTd = document.createElement("td");
+          resTd.textContent = result;
+
+          const ptsTd = document.createElement("td");
+          const ptsSpan = document.createElement("span");
+          ptsSpan.className = "pts-pill";
+          ptsSpan.textContent = pts;
+          ptsTd.appendChild(ptsSpan);
+
+          tr.appendChild(useTd);
+          tr.appendChild(dateTd);
+          tr.appendChild(oppTd);
+          tr.appendChild(typeTd);
+          tr.appendChild(compTd);
+          tr.appendChild(haTd);
+          tr.appendChild(scoreTd);
+          tr.appendChild(resTd);
+          tr.appendChild(ptsTd);
+
+          managerDetailTableBody.appendChild(tr);
+        });
+    }
+
+    function showManagerDetail(managerId) {
+      currentDetailManagerId = managerId;
+      managersSection.style.display = "none";
+      dashboardSections.style.display = "none";
+      managerDetailSection.style.display = "block";
+      buildManagerDetailView(managerId);
+      window.scrollTo(0, 0);
+    }
+
+    function showDashboard() {
+      currentDetailManagerId = null;
+      managerDetailSection.style.display = "none";
+      managersSection.style.display = "";
+      dashboardSections.style.display = "";
+      window.scrollTo(0, 0);
+    }
+
+    backDashboardBtn.addEventListener("click", showDashboard);
+
+    // Tambah match
+    addMatchForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const managerId = document.getElementById("match-manager").value;
+      const opponent = document.getElementById("match-opponent").value.trim() || "-";
+      const type = document.getElementById("match-type").value;
+      const date = document.getElementById("match-date").value;
+      const competition = document.getElementById("match-competition").value;
+      const ha = document.getElementById("match-ha").value;
+      const gf = parseInt(document.getElementById("match-gf").value || "0", 10);
+      const ga = parseInt(document.getElementById("match-ga").value || "0", 10);
+
+      const match = {
+        id: matchCounter++,
+        managerId,
+        opponent,
+        type,
+        date,
+        competition,
+        ha,
+        gf,
+        ga,
+        use: true
+      };
+      matches.push(match);
+      rebuildMatchTable();
+      recalcStandings();
+      saveState();
+
+      document.getElementById("match-opponent").value = "";
+      document.getElementById("match-gf").value = "0";
+      document.getElementById("match-ga").value = "0";
+    });
+
+    [filterType, filterComp, filterManager].forEach(sel => {
+      sel.addEventListener("change", () => {
+        rebuildMatchTable();
+      });
+    });
+
+    // Detail button
+    document.querySelectorAll(".manager-detail-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.managerId;
+        showManagerDetail(id);
+      });
+    });
+
+    // INIT
+    loadState();
+    updateManagerCards();
+    initClubDropdowns();
+    updateFilterManagerOptions();
+    recalcStandings();
+    rebuildMatchTable();
+  </script>
+</body>
+</html>
