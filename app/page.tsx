@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import Pusher from 'pusher-js'
 
 const CLUB_LOGOS = [
@@ -89,15 +90,16 @@ export default function Home() {
       bio: ""
     }
   ])
-  // Manager yang IKUT liga
+
+  // Manager yang ikut liga
   const [activeManagerIds, setActiveManagerIds] = useState<string[]>(() => ["m1", "m2", "m3", "m4"])
-  // Step halaman: pilih peserta / dashboard liga
   const [step, setStep] = useState<Step>('select')
 
   const [matches, setMatches] = useState<Match[]>([])
   const [matchCounter, setMatchCounter] = useState(1)
-  const [currentDetailManagerId, setCurrentDetailManagerId] = useState<string | null>(null)
+
   const [currentEditManagerId, setCurrentEditManagerId] = useState<string | null>(null)
+
   const [filterType, setFilterType] = useState('all')
   const [filterComp, setFilterComp] = useState('all')
   const [filterManager, setFilterManager] = useState('all')
@@ -113,18 +115,16 @@ export default function Home() {
   const [matchGf, setMatchGf] = useState(0)
   const [matchGa, setMatchGa] = useState(0)
 
-  // Edit manager form state
+  // Edit manager form
   const [editClub, setEditClub] = useState('')
   const [editBio, setEditBio] = useState('')
+
   const [isLoaded, setIsLoaded] = useState(false)
 
   const pusherRef = useRef<Pusher | null>(null)
   const channelRef = useRef<any>(null)
-
-  // Flag untuk menandai update yang datang dari server (loadState atau Pusher)
   const isRemoteUpdate = useRef(false)
 
-  // Helper: managers yang ikut liga
   const activeManagers = managers.filter(m => activeManagerIds.includes(m.id))
 
   useEffect(() => {
@@ -140,12 +140,7 @@ export default function Home() {
       await loadState()
       setIsLoaded(true)
 
-      // Kalau sudah ada match tersimpan, otomatis langsung ke halaman liga
-      setStep((prev) => {
-        if (matches.length > 0) return 'league'
-        return prev
-      })
-
+      // Init Pusher client (real-time sync)
       if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_PUSHER_KEY) {
         const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
           cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'ap1',
@@ -156,6 +151,7 @@ export default function Home() {
         channelRef.current = channel
 
         channel.bind('data-updated', (data: any) => {
+          // Tandai ini update dari server
           isRemoteUpdate.current = true
 
           if (data.managers && Array.isArray(data.managers)) {
@@ -165,20 +161,30 @@ export default function Home() {
             }))
             setManagers(managersWithBio)
           }
+
           if (Array.isArray(data.matches)) {
             setMatches(data.matches)
             if (data.matches.length > 0) {
               const maxId = Math.max(...data.matches.map((m: Match) => m.id || 0))
               setMatchCounter(maxId > 0 ? maxId + 1 : 1)
+            } else {
+              setMatchCounter(1)
             }
           }
-          if (data.matchCounter && typeof data.matchCounter === 'number') {
+
+          if (typeof data.matchCounter === 'number') {
             setMatchCounter(data.matchCounter)
           }
+
           if (Array.isArray(data.activeManagerIds) && data.activeManagerIds.length > 0) {
             setActiveManagerIds(data.activeManagerIds)
           } else if (data.managers && Array.isArray(data.managers)) {
             setActiveManagerIds(data.managers.map((m: Manager) => m.id))
+          }
+
+          // Kalau sudah ada match → langsung ke halaman liga
+          if (data.matches && Array.isArray(data.matches) && data.matches.length > 0) {
+            setStep('league')
           }
         })
       }
@@ -203,57 +209,62 @@ export default function Home() {
   }, [theme])
 
   function getManagerById(id: string): Manager | null {
-    const found = managers.find((m) => m.id === id)
+    const found = managers.find(m => m.id === id)
+    return found ?? null
+  }
+
+  function getManagerByClub(clubName: string): Manager | null {
+    const found = managers.find(
+      m => m.clubName === clubName || m.clubLogoFile === `${clubName}.png`
+    )
     return found ?? null
   }
 
   async function saveState() {
     try {
-      const state = { 
-        managers, 
+      const state = {
+        managers,
         matches,
         matchCounter,
         activeManagerIds,
         timestamp: new Date().toISOString()
       }
-      
+
       const response = await fetch('/api/data', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(state)
       })
-      
+
       if (!response.ok) {
         throw new Error('Failed to save to server')
       }
-      
+
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-      } catch (e) {
+      } catch {
         // ignore
       }
     } catch (e) {
-      console.error("saveState error", e)
+      console.error('saveState error', e)
       try {
         const state = { managers, matches, matchCounter, activeManagerIds }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-      } catch (localError) {
-        console.error("localStorage save error", localError)
+      } catch (localErr) {
+        console.error('localStorage save error', localErr)
       }
     }
   }
 
   async function loadState() {
+    // Coba dari server dulu
     try {
       isRemoteUpdate.current = true
 
-      const response = await fetch('/api/data')
-      
+      const response = await fetch('/api/data', { cache: 'no-store' })
       if (response.ok) {
         const state = await response.json()
-        
+
         if (state.managers && Array.isArray(state.managers)) {
           const managersWithBio = state.managers.map((m: Manager) => ({
             ...m,
@@ -261,7 +272,7 @@ export default function Home() {
           }))
           setManagers(managersWithBio)
         }
-        
+
         if (Array.isArray(state.matches)) {
           setMatches(state.matches)
           if (state.matches.length > 0) {
@@ -271,8 +282,8 @@ export default function Home() {
             setMatchCounter(1)
           }
         }
-        
-        if (state.matchCounter && typeof state.matchCounter === 'number') {
+
+        if (typeof state.matchCounter === 'number') {
           setMatchCounter(state.matchCounter)
         }
 
@@ -282,7 +293,6 @@ export default function Home() {
           setActiveManagerIds(state.managers.map((m: Manager) => m.id))
         }
 
-        // Kalau ada match di server, langsung ke halaman liga
         if (state.matches && Array.isArray(state.matches) && state.matches.length > 0) {
           setStep('league')
         }
@@ -290,17 +300,17 @@ export default function Home() {
         return
       }
     } catch (e) {
-      console.error("loadState from server error", e)
+      console.error('loadState from server error', e)
     }
-    
+
+    // Fallback: localStorage
     try {
       isRemoteUpdate.current = true
 
       const raw = localStorage.getItem(STORAGE_KEY)
       if (!raw) return
-      
       const state = JSON.parse(raw)
-      
+
       if (state.managers && Array.isArray(state.managers)) {
         const managersWithBio = state.managers.map((m: Manager) => ({
           ...m,
@@ -308,7 +318,7 @@ export default function Home() {
         }))
         setManagers(managersWithBio)
       }
-      
+
       if (Array.isArray(state.matches)) {
         setMatches(state.matches)
         if (state.matches.length > 0) {
@@ -318,8 +328,8 @@ export default function Home() {
           setMatchCounter(1)
         }
       }
-      
-      if (state.matchCounter && typeof state.matchCounter === 'number') {
+
+      if (typeof state.matchCounter === 'number') {
         setMatchCounter(state.matchCounter)
       }
 
@@ -333,7 +343,7 @@ export default function Home() {
         setStep('league')
       }
     } catch (e) {
-      console.error("loadState from localStorage error", e)
+      console.error('loadState from localStorage error', e)
     }
   }
 
@@ -345,24 +355,10 @@ export default function Home() {
 
   function computePoints(match: Match) {
     const result = computeResult(match.gf, match.ga)
-    let pts = 0
-    if (result === "W") {
-      pts = match.type === "Teman" ? 5 : 3
-    } else if (result === "D") {
-      pts = match.type === "Teman" ? 2 : 1
-    } else {
-      pts = 0
-    }
-    return pts
+    if (result === "W") return match.type === "Teman" ? 5 : 3
+    if (result === "D") return match.type === "Teman" ? 2 : 1
+    return 0
   }
-
-  function getManagerByClub(clubName: string): Manager | null {
-    const found = managers.find(
-      m => m.clubName === clubName || m.clubLogoFile === `${clubName}.png`
-    )
-    return found ?? null
-  }
-  
 
   function handleAddMatch(e: React.FormEvent) {
     e.preventDefault()
@@ -405,7 +401,7 @@ export default function Home() {
 
     setMatches([...matches, match])
     setMatchCounter(matchCounter + 1)
-    
+
     setMatchOpponent('')
     setMatchGf(0)
     setMatchGa(0)
@@ -440,25 +436,14 @@ export default function Home() {
     setMatchDate('')
   }
 
-  function updateManagerClub(managerId: string, clubLogoFile: string) {
-    setManagers(managers.map(m => {
-      if (m.id === managerId) {
-        return {
-          ...m,
-          clubLogoFile: clubLogoFile,
-          clubName: clubLogoFile ? clubLogoFile.replace('.png', '') : ''
-        }
-      }
-      return m
-    }))
-  }
-
   function updateManager(managerId: string, updates: Partial<Manager>) {
     setManagers(managers.map(m => {
       if (m.id === managerId) {
         const updated = { ...m, ...updates }
         if (updates.clubLogoFile !== undefined) {
-          updated.clubName = updates.clubLogoFile ? updates.clubLogoFile.replace('.png', '') : ''
+          updated.clubName = updates.clubLogoFile
+            ? updates.clubLogoFile.replace('.png', '')
+            : ''
         }
         return updated
       }
@@ -467,10 +452,10 @@ export default function Home() {
   }
 
   function showEditManager(managerId: string) {
-    const manager = getManagerById(managerId)
-    if (manager) {
-      setEditClub(manager.clubLogoFile || '')
-      setEditBio(manager.bio || '')
+    const m = getManagerById(managerId)
+    if (m) {
+      setEditClub(m.clubLogoFile || '')
+      setEditBio(m.bio || '')
       setCurrentEditManagerId(managerId)
     }
   }
@@ -482,93 +467,88 @@ export default function Home() {
   }
 
   async function resetAllData() {
-    if (confirm('Apakah Anda yakin ingin mereset semua data? Tindakan ini tidak dapat dibatalkan! Semua user akan kehilangan data!')) {
-      try {
-        const defaultManagers = [
-          {
-            id: "m1",
-            name: "HUI",
-            clubName: "Manchester City",
-            clubLogoFile: "Manchester City.png",
-            photoFile: "hui.png",
-            bio: ""
-          },
-          {
-            id: "m2",
-            name: "bobby",
-            clubName: "Liverpool FC",
-            clubLogoFile: "Liverpool FC.png",
-            photoFile: "bobby.png",
-            bio: ""
-          },
-          {
-            id: "m3",
-            name: "ALDO",
-            clubName: "Chelsea FC",
-            clubLogoFile: "Chelsea FC.png",
-            photoFile: "aldo.png",
-            bio: ""
-          },
-          {
-            id: "m4",
-            name: "OWEN",
-            clubName: "Manchester United",
-            clubLogoFile: "Manchester United.png",
-            photoFile: "owen.png",
-            bio: ""
-          }
-        ]
-        
-        const resetState = {
-          managers: defaultManagers,
-          matches: [],
-          matchCounter: 1,
-          activeManagerIds: defaultManagers.map(m => m.id)
-        }
-        
-        const response = await fetch('/api/data', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(resetState)
-        })
-        
-        if (response.ok) {
-          isRemoteUpdate.current = true
+    if (!confirm('Yakin reset semua data? Semua user akan kehilangan data.')) return
 
-          setManagers(defaultManagers)
-          setMatches([])
-          setMatchCounter(1)
-          setActiveManagerIds(resetState.activeManagerIds)
-          setCurrentDetailManagerId(null)
-          setCurrentEditManagerId(null)
-          setShowMatchForm(false)
-          setMatchManager('')
-          setMatchOpponent('')
-          setMatchGf(0)
-          setMatchGa(0)
-          setMatchDate('')
-          setFilterType('all')
-          setFilterComp('all')
-          setFilterManager('all')
-          setStep('select')
-          
-          localStorage.removeItem(STORAGE_KEY)
-          sessionStorage.removeItem(STORAGE_KEY)
-          
-          alert('Data berhasil direset untuk semua user!')
-        } else {
-          throw new Error('Failed to reset on server')
+    try {
+      const defaultManagers: Manager[] = [
+        {
+          id: "m1",
+          name: "HUI",
+          clubName: "Manchester City",
+          clubLogoFile: "Manchester City.png",
+          photoFile: "hui.png",
+          bio: ""
+        },
+        {
+          id: "m2",
+          name: "bobby",
+          clubName: "Liverpool FC",
+          clubLogoFile: "Liverpool FC.png",
+          photoFile: "bobby.png",
+          bio: ""
+        },
+        {
+          id: "m3",
+          name: "ALDO",
+          clubName: "Chelsea FC",
+          clubLogoFile: "Chelsea FC.png",
+          photoFile: "aldo.png",
+          bio: ""
+        },
+        {
+          id: "m4",
+          name: "OWEN",
+          clubName: "Manchester United",
+          clubLogoFile: "Manchester United.png",
+          photoFile: "owen.png",
+          bio: ""
         }
-      } catch (e) {
-        console.error('Reset error', e)
-        alert('Gagal mereset data!')
+      ]
+
+      const resetState = {
+        managers: defaultManagers,
+        matches: [],
+        matchCounter: 1,
+        activeManagerIds: defaultManagers.map(m => m.id)
       }
+
+      const res = await fetch('/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resetState)
+      })
+
+      if (!res.ok) throw new Error('Failed to reset on server')
+
+      isRemoteUpdate.current = true
+
+      setManagers(defaultManagers)
+      setMatches([])
+      setMatchCounter(1)
+      setActiveManagerIds(resetState.activeManagerIds)
+      setCurrentEditManagerId(null)
+      setShowMatchForm(false)
+      setMatchManager('')
+      setMatchOpponent('')
+      setMatchGf(0)
+      setMatchGa(0)
+      setMatchDate('')
+      setFilterType('all')
+      setFilterComp('all')
+      setFilterManager('all')
+      setStep('select')
+
+      localStorage.removeItem(STORAGE_KEY)
+      sessionStorage.removeItem(STORAGE_KEY)
+
+      alert('Data berhasil direset!')
+    } catch (e) {
+      console.error('Reset error', e)
+      alert('Gagal mereset data.')
     }
   }
 
-  // Auto-save untuk perubahan lokal
+  // Auto-save: hanya kalau bukan update dari server
   useEffect(() => {
     if (!isLoaded) return
     if (isRemoteUpdate.current) {
@@ -578,8 +558,7 @@ export default function Home() {
     saveState()
   }, [managers, matches, activeManagerIds, isLoaded])
 
-  const filteredMatches = matches.filter((match) => {
-    // Hanya match dari manager yang ikut liga
+  const filteredMatches = matches.filter(match => {
     if (!activeManagerIds.includes(match.managerId)) return false
     if (filterType !== 'all' && match.type !== filterType) return false
     if (filterComp !== 'all' && match.competition !== filterComp) return false
@@ -601,7 +580,7 @@ export default function Home() {
       pts: number
     }> = {}
 
-    activeManagers.forEach((m) => {
+    activeManagers.forEach(m => {
       stats[m.id] = {
         id: m.id,
         name: m.name,
@@ -616,7 +595,7 @@ export default function Home() {
       }
     })
 
-    matches.forEach((match) => {
+    matches.forEach(match => {
       if (!match.use) return
       if (!activeManagerIds.includes(match.managerId)) return
       const s = stats[match.managerId]
@@ -625,8 +604,8 @@ export default function Home() {
       s.gf += match.gf
       s.ga += match.ga
       const result = computeResult(match.gf, match.ga)
-      if (result === "W") s.w++
-      else if (result === "L") s.l++
+      if (result === 'W') s.w++
+      else if (result === 'L') s.l++
       else s.d++
       s.pts += computePoints(match)
     })
@@ -644,39 +623,12 @@ export default function Home() {
   const standings = recalcStandings()
 
   function toggleMatchUse(matchId: number) {
-    setMatches(matches.map(m => 
-      m.id === matchId ? { ...m, use: !m.use } : m
-    ))
-  }
-
-  function showManagerDetail(managerId: string) {
-    setCurrentDetailManagerId(managerId)
-  }
-
-  function showDashboard() {
-    setCurrentDetailManagerId(null)
+    setMatches(matches.map(m => m.id === matchId ? { ...m, use: !m.use } : m))
   }
 
   const editManager = currentEditManagerId ? getManagerById(currentEditManagerId) : null
-  const detailManager = currentDetailManagerId ? getManagerById(currentDetailManagerId) : null
-  const detailMatches = detailManager ? matches.filter(m => m.managerId === detailManager.id) : []
-  const detailStats = detailManager ? (() => {
-    const stats = { played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }
-    detailMatches.forEach((match) => {
-      if (!match.use) return
-      const result = computeResult(match.gf, match.ga)
-      stats.played++
-      stats.gf += match.gf
-      stats.ga += match.ga
-      if (result === "W") stats.w++
-      else if (result === "L") stats.l++
-      else stats.d++
-      stats.pts += computePoints(match)
-    })
-    return stats
-  })() : null
 
-  // STEP 2: Edit Manager Page
+  // PAGE: EDIT MANAGER
   if (currentEditManagerId && editManager) {
     return (
       <div className="container">
@@ -703,9 +655,9 @@ export default function Home() {
             </button>
             <h2>Edit Manager – {editManager.name}</h2>
 
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
               gap: '20px',
               maxWidth: '600px',
               margin: '0 auto'
@@ -759,9 +711,9 @@ export default function Home() {
                     <img
                       src={`/logo/${encodeURIComponent(editClub)}`}
                       alt={editClub.replace('.png', '')}
-                      style={{ 
-                        width: '80px', 
-                        height: '80px', 
+                      style={{
+                        width: '80px',
+                        height: '80px',
                         objectFit: 'contain',
                         padding: '8px',
                         background: 'var(--panel-bg)',
@@ -834,145 +786,7 @@ export default function Home() {
     )
   }
 
-  // STEP 3: Detail Manager Page
-  if (currentDetailManagerId && detailManager) {
-    return (
-      <div className="container">
-        <header>
-          <div className="header-left">
-            <div className="title">FM24 MANAGER LEAGUE</div>
-            <div className="subtitle">Mini liga 4 manager • gaya Football Manager</div>
-          </div>
-          <div className="header-right">
-            <div className="pill">Season 1</div>
-            <button className="btn" onClick={resetAllData} style={{ fontSize: '11px', padding: '4px 10px' }} title="Reset semua data">
-              🔄 Reset
-            </button>
-            <button className="btn" onClick={() => setStep('select')}>
-              Pilih Peserta
-            </button>
-            <button className="btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-              Theme: {theme === 'dark' ? 'Dark' : 'Light'}
-            </button>
-          </div>
-        </header>
-
-        <main>
-          <section className="manager-detail show">
-            <button type="button" className="btn back-btn" onClick={showDashboard}>
-              ← Kembali ke dashboard
-            </button>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-              <h2 style={{ margin: 0 }}>Detail Manager – {detailManager.name} ({detailManager.clubName || "Belum pilih club"})</h2>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => showEditManager(detailManager.id)}
-              >
-                Edit Manager
-              </button>
-            </div>
-            {detailStats && (
-              <div className="manager-summary">
-                <div className="summary-card">
-                  <div className="label">Match</div>
-                  <div className="value">{detailStats.played}</div>
-                </div>
-                <div className="summary-card">
-                  <div className="label">W / D / L</div>
-                  <div className="value">{detailStats.w} / {detailStats.d} / {detailStats.l}</div>
-                </div>
-                <div className="summary-card">
-                  <div className="label">Goal For / Against</div>
-                  <div className="value">{detailStats.gf} / {detailStats.ga}</div>
-                </div>
-                <div className="summary-card">
-                  <div className="label">Total Poin</div>
-                  <div className="value">{detailStats.pts}</div>
-                </div>
-              </div>
-            )}
-            {detailManager.bio && detailManager.bio.trim() !== '' && (
-              <div style={{
-                marginTop: '16px',
-                padding: '12px',
-                background: 'rgba(15, 23, 42, 0.5)',
-                borderRadius: '8px',
-                border: '1px solid var(--border)'
-              }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 600 }}>
-                  Biodata
-                </div>
-                <div style={{ 
-                  fontSize: '13px', 
-                  color: 'var(--text-main)',
-                  lineHeight: '1.6',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {detailManager.bio}
-                </div>
-              </div>
-            )}
-            <div style={{ overflowX: 'auto' }}>
-              <table id="manager-detail-table">
-                <thead>
-                  <tr>
-                    <th>Use</th>
-                    <th>Tgl</th>
-                    <th>Lawan</th>
-                    <th>Tipe</th>
-                    <th>Kompetisi</th>
-                    <th>H/A</th>
-                    <th>Skor</th>
-                    <th>Hasil</th>
-                    <th>Poin</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detailMatches.map((match) => {
-                    const opponent = match.opponentId ? getManagerById(match.opponentId) : null
-                    const result = computeResult(match.gf, match.ga)
-                    const pts = computePoints(match)
-                    return (
-                      <tr key={match.id}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={match.use}
-                            onChange={() => toggleMatchUse(match.id)}
-                          />
-                        </td>
-                        <td>{match.date || "-"}</td>
-                        <td>{opponent ? opponent.name : match.opponent || "-"}</td>
-                        <td>
-                          <span className={match.type === "Teman" ? "tag-teman" : "tag-ai"}>
-                            {match.type}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="tag-komp">{match.competition}</span>
-                        </td>
-                        <td>{match.ha}</td>
-                        <td className={`score-cell ${result === "W" ? "score-win" : result === "L" ? "score-loss" : "score-draw"}`}>
-                          {match.gf} - {match.ga}
-                        </td>
-                        <td>{result}</td>
-                        <td>
-                          <span className="pts-pill">{pts}</span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </main>
-      </div>
-    )
-  }
-
-  // STEP 1: Halaman PILIH PESERTA (siapa saja yang ikut jadi manager)
+  // PAGE: PILIH PESERTA (STEP = 'select')
   if (step === 'select') {
     return (
       <div className="container">
@@ -999,7 +813,7 @@ export default function Home() {
               Teman yang tidak ikut bisa di-uncheck. Halaman berikutnya hanya akan menampilkan manager yang ikut.
             </p>
             <div className="manager-grid">
-              {managers.map((manager) => {
+              {managers.map(manager => {
                 const isActive = activeManagerIds.includes(manager.id)
                 const hasPhoto = manager.photoFile && manager.photoFile.trim() !== ''
                 const hasLogo = manager.clubLogoFile && manager.clubLogoFile.trim() !== ''
@@ -1042,12 +856,11 @@ export default function Home() {
                             type="checkbox"
                             checked={isActive}
                             onChange={() => {
-                              setActiveManagerIds((prev) => {
+                              setActiveManagerIds(prev => {
                                 if (prev.includes(manager.id)) {
                                   return prev.filter(id => id !== manager.id)
-                                } else {
-                                  return [...prev, manager.id]
                                 }
+                                return [...prev, manager.id]
                               })
                             }}
                           />
@@ -1098,7 +911,7 @@ export default function Home() {
     )
   }
 
-  // STEP 4: MAIN DASHBOARD (hanya manager yang ikut liga)
+  // PAGE: DASHBOARD LIGA (STEP = 'league')
   return (
     <div className="container">
       <header>
@@ -1121,7 +934,7 @@ export default function Home() {
       </header>
 
       <main>
-        {/* MANAGER CARDS (hanya yang ikut liga) */}
+        {/* MANAGER CARDS */}
         <section id="managers">
           <h2>Managers Aktif <span className="badge">Peserta liga ini</span></h2>
           {activeManagers.length === 0 ? (
@@ -1130,7 +943,7 @@ export default function Home() {
             </p>
           ) : (
             <div className="manager-grid">
-              {activeManagers.map((manager) => {
+              {activeManagers.map(manager => {
                 const hasPhoto = manager.photoFile && manager.photoFile.trim() !== ''
                 const hasLogo = manager.clubLogoFile && manager.clubLogoFile.trim() !== ''
                 return (
@@ -1167,13 +980,12 @@ export default function Home() {
                         </span>
                       </div>
                       <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                        <button
-                          type="button"
+                        <Link
+                          href={`/manager/${manager.id}`}
                           className="btn manager-detail-btn"
-                          onClick={() => showManagerDetail(manager.id)}
                         >
                           Detail
-                        </button>
+                        </Link>
                         <button
                           type="button"
                           className="btn manager-detail-btn"
@@ -1224,15 +1036,18 @@ export default function Home() {
                   }
                 }
               }
-              
+
               return (
-                <div id="match-form-section" style={{ 
-                  background: 'var(--panel-bg-soft)', 
-                  borderRadius: '12px', 
-                  padding: '16px', 
-                  marginBottom: '16px',
-                  border: '1px solid var(--border)'
-                }}>
+                <div
+                  id="match-form-section"
+                  style={{
+                    background: 'var(--panel-bg-soft)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    marginBottom: '16px',
+                    border: '1px solid var(--border)'
+                  }}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Input Pertandingan</h3>
                     <button type="button" className="btn" onClick={cancelMatchForm} style={{ fontSize: '11px', padding: '4px 10px' }}>
@@ -1321,8 +1136,8 @@ export default function Home() {
                     <div className="form-grid" style={{ marginTop: '16px' }}>
                       <label>
                         Tipe
-                        <select 
-                          value={matchType} 
+                        <select
+                          value={matchType}
                           onChange={(e) => {
                             setMatchType(e.target.value)
                             setMatchOpponent('')
@@ -1409,6 +1224,7 @@ export default function Home() {
                       </label>
                       <div></div>
                     </div>
+
                     <div className="form-footer">
                       <span className="form-note">
                         {matchOpponent && detectedType === 'Teman' && matchType === 'AI' ? (
@@ -1434,12 +1250,14 @@ export default function Home() {
             })()}
 
             {!showMatchForm && (
-              <div style={{ 
-                padding: '20px', 
-                textAlign: 'center', 
-                color: 'var(--text-muted)',
-                fontSize: '13px'
-              }}>
+              <div
+                style={{
+                  padding: '20px',
+                  textAlign: 'center',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px'
+                }}
+              >
                 Pilih manager dari section "Managers Aktif" di atas untuk menambah pertandingan
               </div>
             )}
@@ -1483,7 +1301,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredMatches.map((match) => {
+                  {filteredMatches.map(match => {
                     const mgr = getManagerById(match.managerId)
                     const opponent = match.opponentId ? getManagerById(match.opponentId) : null
                     const pts = computePoints(match)
