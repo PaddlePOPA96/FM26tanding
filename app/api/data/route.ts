@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
 import Pusher from 'pusher'
 
-export const dynamic = 'force-dynamic'
-
+// --- tipe harus sama dengan di page.tsx ---
 interface Manager {
   id: string
   name: string
@@ -36,79 +33,95 @@ interface LeagueState {
   timestamp?: string
 }
 
-const DATA_FILE = path.join(process.cwd(), 'league-data.json')
-
-function defaultState(): LeagueState {
-  const m = [
-    { id: "m1", name: "HUI", clubName:"Manchester City", clubLogoFile:"Manchester City.png", photoFile:"hui.png", bio:"" },
-    { id: "m2", name: "bobby", clubName:"Liverpool FC", clubLogoFile:"Liverpool FC.png", photoFile:"bobby.png", bio:"" },
-    { id: "m3", name: "ALDO", clubName:"Chelsea FC", clubLogoFile:"Chelsea FC.png", photoFile:"aldo.png", bio:"" },
-    { id: "m4", name: "OWEN", clubName:"Manchester United", clubLogoFile:"Manchester United.png", photoFile:"owen.png", bio:"" }
-  ]
-  return {
-    managers: m,
-    matches: [],
-    matchCounter: 1,
-    activeManagerIds: m.map(x => x.id),
-    timestamp: new Date().toISOString()
-  }
+// --- default awal (boleh sama dengan default di page.tsx) ---
+const defaultState: LeagueState = {
+  managers: [
+    {
+      id: "m1",
+      name: "HUI",
+      clubName: "Manchester City",
+      clubLogoFile: "Manchester City.png",
+      photoFile: "hui.png",
+      bio: ""
+    },
+    {
+      id: "m2",
+      name: "bobby",
+      clubName: "Liverpool FC",
+      clubLogoFile: "Liverpool FC.png",
+      photoFile: "bobby.png",
+      bio: ""
+    },
+    {
+      id: "m3",
+      name: "ALDO",
+      clubName: "Chelsea FC",
+      clubLogoFile: "Chelsea FC.png",
+      photoFile: "aldo.png",
+      bio: ""
+    },
+    {
+      id: "m4",
+      name: "OWEN",
+      clubName: "Manchester United",
+      clubLogoFile: "Manchester United.png",
+      photoFile: "owen.png",
+      bio: ""
+    },
+  ],
+  matches: [],
+  matchCounter: 1,
+  activeManagerIds: ["m1", "m2", "m3", "m4"],
+  timestamp: new Date().toISOString()
 }
 
-let pusher: Pusher | null = null
+// disimpan di memory server
+let memoryState: LeagueState = { ...defaultState }
 
-if (
+// --- Pusher server (kalau env nya lengkap) ---
+const pusher =
   process.env.PUSHER_APP_ID &&
   process.env.PUSHER_KEY &&
   process.env.PUSHER_SECRET &&
   process.env.PUSHER_CLUSTER
-) {
-  pusher = new Pusher({
-    appId: process.env.PUSHER_APP_ID,
-    key: process.env.PUSHER_KEY,
-    secret: process.env.PUSHER_SECRET,
-    cluster: process.env.PUSHER_CLUSTER,
-    useTLS: true
-  })
+    ? new Pusher({
+        appId: process.env.PUSHER_APP_ID,
+        key: process.env.PUSHER_KEY,
+        secret: process.env.PUSHER_SECRET,
+        cluster: process.env.PUSHER_CLUSTER,
+        useTLS: true,
+      })
+    : null
+
+// GET: dipakai halaman utama (loadState) & halaman detail
+export async function GET(_req: NextRequest) {
+  return NextResponse.json(memoryState)
 }
 
-function readState(): LeagueState {
-  try {
-    if (!fs.existsSync(DATA_FILE)) return defaultState()
-    const raw = fs.readFileSync(DATA_FILE, 'utf8')
-    return JSON.parse(raw)
-  } catch {
-    return defaultState()
-  }
-}
-
-export async function GET() {
-  const data = readState()
-  return NextResponse.json(data)
-}
-
+// POST: dipanggil dari page.tsx -> saveState()
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const body = (await req.json()) as Partial<LeagueState>
 
-    const newState: LeagueState = {
-      managers: body.managers || [],
-      matches: body.matches || [],
-      matchCounter: body.matchCounter || 1,
-      activeManagerIds: body.activeManagerIds || [],
-      timestamp: new Date().toISOString()
+    // gabung state lama + baru, tapi pastikan field utama ada
+    memoryState = {
+      ...memoryState,
+      ...body,
+      managers: body.managers ?? memoryState.managers,
+      matches: body.matches ?? memoryState.matches,
+      matchCounter: body.matchCounter ?? memoryState.matchCounter,
+      activeManagerIds: body.activeManagerIds ?? memoryState.activeManagerIds,
+      timestamp: body.timestamp ?? new Date().toISOString(),
     }
 
-    try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(newState, null, 2), 'utf8')
-    } catch {}
-
+    // broadcast ke semua client (kalau pusher dikonfig)
     if (pusher) {
-      await pusher.trigger("fm24-league", "data-updated", newState)
+      await pusher.trigger('fm24-league', 'data-updated', memoryState)
     }
 
-    return NextResponse.json({ ok: true }, { status: 200 })
-  } catch (err) {
-    console.error("POST ERROR:", err)
-    return NextResponse.json({ error: "Bad Request" }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    console.error('POST /api/data error', e)
+    return NextResponse.json({ ok: false, error: 'Failed to save' }, { status: 500 })
   }
 }
