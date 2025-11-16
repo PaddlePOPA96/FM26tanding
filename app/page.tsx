@@ -187,8 +187,9 @@ export default function Home() {
     localStorage.setItem("fmTheme", theme)
   }, [theme])
 
-  function getManagerById(id: string) {
-    return managers.find((m) => m.id === id)
+  function getManagerById(id: string): Manager | null {
+    const found = managers.find((m) => m.id === id)
+    return found ?? null
   }
 
   async function saveState() {
@@ -326,9 +327,13 @@ export default function Home() {
     return pts
   }
 
-  function getManagerByClub(clubName: string) {
-    return managers.find(m => m.clubName === clubName || m.clubLogoFile === `${clubName}.png`)
+  function getManagerByClub(clubName: string): Manager | null {
+    const found = managers.find(
+      m => m.clubName === clubName || m.clubLogoFile === `${clubName}.png`
+    )
+    return found ?? null
   }
+  
 
   function handleAddMatch(e: React.FormEvent) {
     e.preventDefault()
